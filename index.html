@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GSEB 10th Study Hero</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Recharts (for the graph) -->
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: sans-serif; }
+        .tab-active { color: #ea580c; border-bottom: 2px solid #ea580c; background: #fff7ed; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } = Recharts;
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('ai');
+            const [input, setInput] = useState('');
+            const [aiResponse, setAiResponse] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [apiKey, setApiKey] = useState(localStorage.getItem('groq_key') || '');
+            
+            const [grades, setGrades] = useState(() => {
+                const saved = localStorage.getItem('gseb_marks');
+                return saved ? JSON.parse(saved) : [
+                    { subject: 'Maths', score: 70 }, { subject: 'Science', score: 75 },
+                    { subject: 'S.S.', score: 80 }, { subject: 'English', score: 85 }, { subject: 'Guj/Hin', score: 80 }
+                ];
+            });
+
+            useEffect(() => { localStorage.setItem('gseb_marks', JSON.stringify(grades)); }, [grades]);
+            useEffect(() => { localStorage.setItem('groq_key', apiKey); }, [apiKey]);
+
+            const callGroq = async () => {
+                if (!input || !apiKey) {
+                    alert("Please enter a question AND your Groq API Key in the settings!");
+                    return;
+                }
+                setLoading(true);
+                try {
+                    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                        method: "POST",
+                        headers: { 
+                            "Authorization": `Bearer ${apiKey}`, 
+                            "Content-Type": "application/json" 
+                        },
+                        body: JSON.stringify({
+                            model: "llama3-8b-8192",
+                            messages: [
+                                { role: "system", content: "You are a GSEB 10th expert. Use Gujarat Board syllabus." },
+                                { role: "user", content: input }
+                            ]
+                        })
+                    });
+                    const data = await res.json();
+                    setAiResponse(data.choices[0].message.content);
+                } catch (err) { setAiResponse("Error: Check your API Key or Internet."); }
+                setLoading(false);
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 pb-24">
+                    <nav className="bg-orange-600 text-white p-4 sticky top-0 z-50 shadow-lg flex justify-between">
+                        <h1 className="font-bold text-xl uppercase tracking-tighter">GSEB 10th Hero</h1>
+                        <input 
+                            type="password" 
+                            placeholder="Paste Groq Key Here" 
+                            className="text-black text-xs p-1 rounded w-32 outline-none"
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                        />
+                    </nav>
+
+                    <div className="max-w-4xl mx-auto p-4">
+                        {activeTab === 'ai' ? (
+                            <div className="space-y-4">
+                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-orange-100">
+                                    <h2 className="font-bold text-orange-900 mb-2">AI Doubts & Quiz Maker</h2>
+                                    <textarea 
+                                        className="w-full p-4 bg-slate-50 border rounded-xl h-32 outline-none focus:ring-2 focus:ring-orange-500"
+                                        placeholder="Ask: 'Give me 5 MCQs for Science Ch 1' or 'Explain Maths Ch 5'"
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                    />
+                                    <button onClick={callGroq} disabled={loading} className="w-full mt-2 bg-orange-600 text-white py-4 rounded-xl font-bold">
+                                        {loading ? "Thinking..." : "Solve Doubt / Generate Test"}
+                                    </button>
+                                </div>
+                                {aiResponse && (
+                                    <div className="bg-slate-900 text-slate-100 p-5 rounded-2xl whitespace-pre-wrap shadow-xl">
+                                        <div className="text-orange-400 text-xs font-bold mb-2">GSEB AI SOLUTION:</div>
+                                        {aiResponse}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                                    <h3 className="font-bold mb-6 text-slate-700 underline decoration-orange-500">Performance Status</h3>
+                                    <div className="h-64">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={grades}>
+                                                <XAxis dataKey="subject" fontSize={12} />
+                                                <Tooltip cursor={{fill: '#fff7ed'}} />
+                                                <Bar dataKey="score" fill="#ea580c" radius={[10, 10, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    {grades.map((g, i) => (
+                                        <div key={g.subject} className="bg-white p-4 rounded-xl flex justify-between border shadow-sm">
+                                            <span className="font-bold text-slate-700">{g.subject}</span>
+                                            <input type="number" value={g.score} onChange={(e) => {
+                                                const n = [...grades];
+                                                n[i].score = parseInt(e.target.value) || 0;
+                                                setGrades(n);
+                                            }} className="w-16 bg-orange-50 text-orange-600 font-bold text-center rounded border border-orange-200" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="fixed bottom-0 w-full bg-white border-t flex justify-around p-3 pb-6 shadow-2xl">
+                        <button onClick={() => setActiveTab('ai')} className={`flex flex-col items-center p-2 px-6 rounded-xl ${activeTab === 'ai' ? 'tab-active' : 'text-slate-400'}`}>
+                            <span className="text-xs font-bold uppercase tracking-widest">AI Tutor</span>
+                        </button>
+                        <button onClick={() => setActiveTab('marks')} className={`flex flex-col items-center p-2 px-6 rounded-xl ${activeTab === 'marks' ? 'tab-active' : 'text-slate-400'}`}>
+                            <span className="text-xs font-bold uppercase tracking-widest">Grades</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
